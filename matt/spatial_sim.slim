@@ -1,0 +1,72 @@
+initialize() {
+
+   setSeed(1);
+   initializeSLiMModelType("nonWF");
+   initializeSLiMOptions(dimensionality="xy");
+   initializeTreeSeq(retainCoalescentOnly=F); // KEEP ALL ANCESTORS THAT REMAIN IN TREE SEQUENCE
+   initializeMutationRate(0.0);
+   initializeMutationType("m1", 0.5, "f", 0.0);
+   initializeGenomicElementType("g1", m1, 1.0);
+   initializeGenomicElement(g1, 0, 999999);
+   initializeRecombinationRate(1e-8);    
+
+   defineConstant("LAMBDA", 4.0); // birth rate
+   defineConstant("K", 2.0);      // carrying capacity per unit area
+   defineConstant("W", 10);      // width and height of the area
+   defineConstant("SIGMA", 0.1);  // interaction and dispersal distance
+   
+   // spatial interaction for local competition
+   initializeInteractionType("i1", "xy", reciprocal=T, maxDistance = 10 * SIGMA);
+   i1.setInteractionFunction("n", 1.0/(2*PI*SIGMA^2), SIGMA);
+}
+
+reproduction() {
+   neighbor_density = i1.totalOfNeighborStrengths(individual);
+   num_offspring = rpois(1, LAMBDA / (1 + neighbor_density / K));
+   mate = i1.drawByStrength(individual, 1);  // single mating
+   if (size(mate) > 0) {
+       for (k in seqLen(num_offspring)) {
+           offspring = p1.addCrossed(individual, mate);
+           pos = individual.spatialPosition + rnorm(2, 0, SIGMA);
+           offspring.setSpatialPosition(p1.pointReflected(pos));
+       }
+   }
+}
+
+1 early() {
+   
+   // sim.addSubpop("p1", asInteger(K * W * W)); //start at carrying capacity
+   sim.addSubpop("p1", 2); //start with just a few ancestors (helps make everyone coalesce in a short time)
+
+   p1.setSpatialBounds(c(0.0, 0.0, W, W));
+   
+   // locate uniformly to start
+   //for (ind in p1.individuals) {
+   //    ind.setSpatialPosition(p1.pointUniform()); 
+   //}
+   
+   // start with little square in the center
+   p1.individuals.x = runif(p1.individualCount) + W/2; 
+   p1.individuals.y = runif(p1.individualCount) + W/2;
+}
+
+early() { 
+    // survival probabilities
+    p1.fitnessScaling = 1;
+    inds = sim.subpopulations.individuals;
+    inds[inds.age > 0].fitnessScaling = 0.0; // DISCRETE GENERATIONS
+}
+
+late() {
+   i1.evaluate();
+}
+
+late() {
+   sim.treeSeqRememberIndividuals(p1.individuals, permanent=F); // retain but do not permanently remember all the individuals
+}
+
+1000 late() { 
+   sim.treeSeqOutput("spatial_sim.trees");
+   catn("Done.");
+   sim.simulationFinished();
+}

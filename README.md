@@ -1,2 +1,2 @@
 # space-trees
-Code to create tree sequences and analyze their spatial information (work-study 2021)
+Code to create tree sequences in SLiM and analyze their spatial information in Jupyter (work-study 2021)

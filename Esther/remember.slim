@@ -1,0 +1,72 @@
+//a continuous, 2D, neutral, non WF model--no natural disasters/random events that change pop size
+
+initialize() {
+//non WF
+initializeSLiMModelType("nonWF");
+defineConstant("K", 900);
+defineConstant("S", 0.1);
+defineConstant("W", 50); //square dimensions
+	initializeSLiMOptions(dimensionality="xy", periodicity = "xy");
+	initializeTreeSeq();
+	initializeMutationRate(0);
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 99999);
+	initializeRecombinationRate(1e-8);
+	m1.convertToSubstitution = T;
+	
+	// spatial competition interaction type (same force between individuals)
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S*3); //Interaction i1; 2D, reciprocal, set boundary for the interactions (max distance); interactions closest act strongest, to a max strength 1 (normal distribution)
+	i1.setInteractionFunction("n", 1.0, S);
+
+	// spatial mate choice
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+}
+
+reproduction() {
+mate = i2.nearestNeighbors(individual, 3);
+if (!mate.size())
+         return;
+      mate = sample(mate, 1);
+      for (i in seqLen(rpois(1, 0.1)))
+      {
+         pos = individual.spatialPosition + rnorm(2, 0, 0.02);
+         offspring = subpop.addCrossed(individual, mate);
+         offspring.setSpatialPosition(p1.pointPeriodic(pos));
+		} 
+}
+
+modifyChild() {
+	do pos = parent1.spatialPosition + rnorm(2, 0, 0.02);
+	while (!p1.pointInBounds(pos));
+	child.setSpatialPosition(pos);
+	return T;
+	}
+	
+1 early() {
+	sim.addSubpop("p1", 1000);
+	p1.individuals.setSpatialPosition(p1.pointUniform(1000));
+	sim.treeSeqRememberIndividuals(p1.individuals);
+}
+1: early() {
+	i1.evaluate();
+	inds = sim.subpopulations.individuals;
+	//define competition and then do fitness scaling to enforce K (carrying capacity density) = density dependent selection/comp.
+	competition = i1.totalOfNeighborStrengths(inds);
+	competition = (competition+1)/(2*PI*S^2);
+inds.fitnessScaling = K / competition;
+	
+}
+1: late() {
+	i2.evaluate();
+	}
+
+
+2000 late() { sim.treeSeqOutput("remember.trees"); 
+
+}
+//YESS!!!!!!!  ^_^
+//p1, permanent = F
+//goal: add boundaries, subpop2, start at diff points--can two pops interact
+//or one subpop, split into diff corners (hard)
+

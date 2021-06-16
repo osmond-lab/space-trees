@@ -1,0 +1,104 @@
+// Keywords: continuous space, continuous spatial landscape, reprising boundaries
+
+initialize() {
+	initializeSLiMOptions(dimensionality="xy");
+	initializeTreeSeq();
+
+	initializeMutationRate(1e-7);
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeMutationType("m2", 0.5, "n", 0.0, 0.02);
+	initializeMutationType("m3", 0.0, "n", -0.1, 0.02);
+	initializeGenomicElementType("g1", c(m1,m2,m3), c(10, 1, 100));
+	initializeGenomicElement(g1, 0, 99999);
+	initializeRecombinationRate(1e-8);
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=0.1);
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+}
+1 late() {
+	sim.addSubpop("p1", 250);
+	sim.addSubpop("p2", 250);
+	
+	// random within squares: p1 bottom left, p2 top right
+	p1.individuals.x = runif(p1.individualCount, 0.1, 0.3);
+	p1.individuals.y = runif(p1.individualCount, 0.1, 0.3);
+	p2.individuals.x = runif(p2.individualCount, 0.7, 0.9);
+	p2.individuals.y = runif(p2.individualCount, 0.7, 0.9);
+}
+
+1: late() {
+	i1.evaluate();
+	i2.evaluate();
+	
+	//calculate community benefits compared to other community
+	//the more tight knit you are & the less the others are, the better your fitness
+
+	frOne = sum(i1.totalOfNeighborStrengths(p1.individuals));
+	frTwo = sum(i1.totalOfNeighborStrengths(p2.individuals));	
+	
+	p1.individuals.fitnessScaling = frOne/frTwo;
+	p2.individuals.fitnessScaling = frTwo/frOne;
+}
+
+2: early() {	
+	if (sim.generation % 1000 == 0) {
+		frOne = sum(i1.totalOfNeighborStrengths(p1.individuals));
+		frTwo = sum(i1.totalOfNeighborStrengths(p2.individuals));
+		pOne = mean(p1.cachedFitness(NULL))^2;
+		pTwo = mean(p2.cachedFitness(NULL))^2;
+		print("Strengths: " + asString(frOne) + ", " + asString(frTwo));
+
+		//check that population fitness isn't TOO low; if it's overall terrible, call it quits as if they'd died out
+		
+		if (pOne < 0.1 & pTwo < 0.1) {
+			print("Both subpopulations failed to thrive.");
+			sim.simulationFinished();
+		}
+		else if (pOne < 0.1) {
+			print("Subpopulation 1 failed to thrive.");
+			sim.simulationFinished();
+		}
+		else if (pTwo < 0.1) {
+			print("Subpopulation 2 failed to thrive.");
+			sim.simulationFinished();
+		}
+	}
+	
+}
+
+2: mateChoice() {
+	if (subpop == p1) {pop = p2;}
+	else {pop = p1;}
+	
+	//how many friends & how many enemies are nearby?
+	strength = i1.nearestNeighborsOfPoint(subpop, individual.spatialPosition, 50);
+	weak = i2.nearestNeighborsOfPoint(pop, individual.spatialPosition, 50);
+
+	//if more friends than enemies, find friendly mate; otherwise, you are too uncomfortable to find a mate, so no babby is form
+	if (size(strength) > size(weak)) {
+		close = i1.nearestNeighborsOfPoint(subpop, individual.spatialPosition, 3);
+		return sample(close, 1);
+	}
+	return float(0);
+}
+
+modifyChild() {
+	//the stronger the parent, the closer the offspring will stay to them, because clearly they know what's up
+	//a weak parent means the offspring will stray further, disillusioned by their poor upbringing
+	
+	fit = subpop.cachedFitness(parent1.index);	
+	
+	do child.x = parent1.x + rnorm(1, 0, 0.02+0.001*(1/fit));
+	while ((child.x < 0.0) | (child.x > 1.0));
+	
+	do child.y = parent1.y + rnorm(1, 0, 0.02+0.001*(1/fit));
+	while ((child.y < 0.0) | (child.y > 1.0));
+	
+	return T;
+}
+20000 late() { 
+	//sim.treeSeqOutput("cont.trees"); 
+	
+	//if both populations make it, it's celebration time!
+	print("Despite the odds, everyone made it!");
+	sim.simulationFinished();
+}

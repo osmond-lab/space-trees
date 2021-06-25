@@ -6,7 +6,7 @@ initialize() {
 	defineConstant("K", 500);	// carrying capacity
 	
 	// beneficial mutations
-	initializeMutationType("m1", 0.5, "n", 0.01, 0.002);
+	initializeMutationType("m1", 0.5, "n", 0.2, 0.05);
 	m1.convertToSubstitution = F;
 	
 	initializeGenomicElementType("g1", m1, 1.0);
@@ -44,8 +44,6 @@ reproduction() {
 // create an initial population of 10 individuals
 1 early() {
 	sim.addSubpop("p1", 10);
-	lucky = sample(p1.genomes, 1);
-	lucky.addNewDrawnMutation(m1, rdunif(1, 0, 9999));
 	p1.individuals.setSpatialPosition(p1.pointUniform(10));
 	sim.treeSeqRememberIndividuals(p1.individuals);
 	
@@ -68,6 +66,21 @@ early() {
 late() {
 	i2.evaluate();
 }
+
+1000 early() {
+	muted = 0;
+	while (muted < 10) {
+		potential = sample(p1.individuals, 1);
+		if (potential.age == 0) {
+			for (p in potential) {
+				gen = p.genomes[rbinom(1, 1, 0.5)];
+				gen.addNewDrawnMutation(m1, 10000);
+			}
+			muted = muted + 1;
+		}
+	}
+}
+
 
 2000 late() { 
 	sim.treeSeqOutput("memutory.trees");

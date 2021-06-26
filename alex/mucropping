@@ -1,0 +1,70 @@
+// set up a simple neutral nonWF simulation
+initialize() {
+	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(dimensionality="xy");
+	initializeTreeSeq();
+	defineConstant("K", 200);	// carrying capacity
+	
+	// neutral mutations, which are allowed to fix
+	initializeMutationType("m1", 0.5, "n", 0.1, 0.03);
+	initializeMutationType("m2", 0.5, "n", -0.1, 0.03);
+	m1.convertToSubstitution = T;
+	m2.convertToSubstitution = T;
+	
+	initializeGenomicElementType("g1", c(m1,m2), c(1.0,100.0));
+	initializeGenomicElement(g1, 0, 99999);
+	initializeMutationRate(1e-7);
+	initializeRecombinationRate(1e-8);
+	
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=0.3);
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+	i1.setInteractionFunction("n", 1.0, 0.1);
+	i2.setInteractionFunction("n", 1.0, 0.03);
+}
+
+// each individual reproduces itself once
+reproduction() {
+	suitors = i2.totalOfNeighborStrengths(individual);
+	if (suitors==0) {
+		return;
+	}
+	for (i in rpois(1, 0.05*suitors)) {
+		mate = i2.drawByStrength(individual);
+		child = p1.addCrossed(individual, mate);
+		rand = individual.spatialPosition + rnorm(2, 0, 0.02);
+		child.setSpatialPosition(p1.pointStopped(rand));
+		sim.treeSeqRememberIndividuals(child);
+	}
+	return;
+}
+
+// create an initial population of 10 individuals
+1 early() {
+	sim.addSubpop("p1", 10);
+	p1.individuals.setSpatialPosition(p1.pointUniform(10));
+	sim.treeSeqRememberIndividuals(p1.individuals);
+	i2.evaluate();
+}
+
+// provide density-dependent selection
+early() {
+	for (ind in p1.individuals) {
+		move = rnorm(2, 0, 0.01);
+		new = p1.pointStopped(ind.spatialPosition + move);
+		ind.setSpatialPosition(new);
+	}
+	i1.evaluate();
+	str = i1.totalOfNeighborStrengths(p1.individuals);
+	scale = K / str^2;
+	p1.individuals.fitnessScaling = scale;
+}
+
+late() {
+	i2.evaluate();
+}
+
+// output all fixed mutations at end
+
+1000 late() {
+	sim.treeSeqOutput("mucrop.trees");
+	sim.outputFixedMutations(); }

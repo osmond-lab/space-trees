@@ -1,0 +1,80 @@
+initialize() {
+	initializeSLiMModelType("nonWF");
+	defineConstant("K", 500);
+	defineConstant("S", 0.1);
+	
+	initializeSLiMOptions(dimensionality="xy", periodicity="xy");
+	
+	initializeMutationRate(0); //No Mutations
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 9999);
+	initializeRecombinationRate(1e-8);
+	
+	// Spatial Competition
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S*3);
+	i1.setInteractionFunction("n", 1.0, S);
+	
+	// Spatial Mate Choice
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+}
+
+reproduction() {
+	mate = i2.nearestNeighbors(individual, 3);
+	if (!mate.size())
+		return;
+	mate = sample(mate, 1);
+	
+	//REPRISING BOUNDARIES
+	for (i in seqLen(rpois(1, 0.1)))
+	{
+		offspring = subpop.addCrossed(individual, mate);
+		do pos = individual.spatialPosition + rnorm(2, 0, 0.02);
+		while (!p1.pointInBounds(pos));
+		offspring.setSpatialPosition(pos);}
+	
+	//PERIODIC BOUNDARIES
+//	for (i in seqLen(rpois(1, 0.1)))
+//	{
+//		pos = individual.spatialPosition + rnorm(2, 0, 0.02);
+//		offspring = subpop.addCrossed(individual, mate);
+//		offspring.setSpatialPosition(p1.pointPeriodic(pos));}
+}
+
+1 early() {
+	sim.addSubpop("p1", 50);
+	
+	// Population 1 starts in bottom right corner
+	p1.individuals.x = runif(p1.individualCount, 0.75, 1);
+	p1.individuals.y = runif(p1.individualCount, 0, 0.25);
+
+	sim.addSubpop("p2", 50);
+	
+	// Population 2 starts in top left corner
+	p2.individuals.x = runif(p1.individualCount, 0, 0.25);
+	p2.individuals.y = runif(p1.individualCount, 0.75, 1);
+}
+
+1: early() {
+	i1.evaluate();
+	inds1 = p1.individuals;
+	competition = i1.totalOfNeighborStrengths(inds1);
+	competition = (competition + 1) / (2 * PI * S^2);
+	inds1.fitnessScaling = K / competition;
+	inds1.color = "cornflowerblue";
+}
+
+1: early() {
+	i1.evaluate();
+	inds2 = p2.individuals;
+	competition = i1.totalOfNeighborStrengths(inds2);
+	competition = (competition + 1) / (2 * PI * S^2);
+	inds2.fitnessScaling = K / competition;
+	inds2.color = "chocolate1";
+
+}
+
+1: late() {
+	i2.evaluate();}
+
+2000 late() { sim.outputFixedMutations(); }

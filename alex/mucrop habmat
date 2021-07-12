@@ -3,7 +3,7 @@ initialize() {
 	initializeSLiMModelType("nonWF");
 	initializeSLiMOptions(dimensionality="xy");
 	initializeTreeSeq();
-	defineConstant("K", 200);	// carrying capacity
+	defineConstant("K", 1500);	// carrying capacity
 	
 	// neutral mutations, which are allowed to fix
 	initializeMutationType("m1", 0.5, "n", 0.1, 0.03);
@@ -11,7 +11,7 @@ initialize() {
 	m1.convertToSubstitution = T;
 	m2.convertToSubstitution = T;
 	
-	initializeGenomicElementType("g1", c(m1,m2), c(1.0,100.0));
+	initializeGenomicElementType("g1", c(m1,m2), c(1.0,10.0));
 	initializeGenomicElement(g1, 0, 99999);
 	initializeMutationRate(1e-7);
 	initializeRecombinationRate(1e-8);
@@ -33,7 +33,9 @@ reproduction() {
 		child = p1.addCrossed(individual, mate);
 		rand = individual.spatialPosition + rnorm(2, 0, 0.02);
 		child.setSpatialPosition(p1.pointStopped(rand));
-		sim.treeSeqRememberIndividuals(child);
+		if (sim.generation % 10 == 0) {
+			sim.treeSeqRememberIndividuals(child);
+		}
 	}
 	return;
 }
@@ -41,6 +43,9 @@ reproduction() {
 // create an initial population of 10 individuals
 1 early() {
 	sim.addSubpop("p1", 10);
+	mapValues = matrix(sqrt(runif(100, 0, 1)), nrow=10);
+   p1.defineSpatialMap("h", "xy", mapValues, interpolate=T,
+      valueRange=c(0.0, 1.0), colors=c("black", "white"));
 	p1.individuals.setSpatialPosition(p1.pointUniform(10));
 	sim.treeSeqRememberIndividuals(p1.individuals);
 	i2.evaluate();
@@ -55,7 +60,9 @@ early() {
 	}
 	i1.evaluate();
 	str = i1.totalOfNeighborStrengths(p1.individuals);
-	scale = K / str^2;
+	Kloc = K * p1.spatialMapValue("h", 
+		p1.individuals.spatialPosition);
+	scale = Kloc / str^2;
 	p1.individuals.fitnessScaling = scale;
 }
 
@@ -69,6 +76,6 @@ late() {
 
 // output all fixed mutations at end
 
-10000 late() {
-	sim.treeSeqOutput("mucrop.trees");
+2000 late() {
+	sim.treeSeqOutput("habmat.trees");
 	sim.outputFixedMutations(); }

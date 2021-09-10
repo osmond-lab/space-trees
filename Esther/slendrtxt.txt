@@ -1,0 +1,112 @@
+#intro slendr
+library(slendr)
+map <- world(
+  xrange = c(-15, 60), # min-max longitude
+  yrange = c(20, 65),  # min-max latitude
+  crs = "EPSG:3035"    # real projected CRS used internally
+)
+africa <- region(
+  "Africa", map,
+  polygon = list(c(-18, 20), c(40, 20), c(30, 33),
+                 c(20, 32), c(10, 35), c(-8, 35))
+)
+europe <- region(
+  "Europe", map,
+  polygon = list(
+    c(-8, 35), c(-5, 36), c(10, 38), c(20, 35), c(25, 35),
+    c(33, 45), c(20, 58), c(-5, 60), c(-15, 50)
+  )
+)
+anatolia <- region(
+  "Anatolia", map,
+  polygon = list(c(28, 35), c(40, 35), c(42, 40),
+                 c(30, 43), c(27, 40), c(25, 38))
+)
+afr <- population(
+  "AFR", parent = "ancestor", time = 52000, N = 3000,
+  map = map, polygon = africa
+)
+
+ooa <- population(
+  "OOA", parent = afr, time = 51000, N = 500, remove = 25000,
+  center = c(33, 30), radius = 400e3
+)
+
+ooa <- ooa %>% move(
+  trajectory = list(c(40, 30), c(50, 30), c(60, 40)),
+  start = 50000, end = 40000
+)
+
+ehg <- population(
+  "EHG", parent = ooa, time = 28000, N = 1000, remove = 6000,
+  polygon = list(
+    c(26, 55), c(38, 53), c(48, 53), c(60, 53),
+    c(60, 60), c(48, 63), c(38, 63), c(26, 60))
+)
+
+eur <- population( # European population
+  name = "EUR", parent = ehg, time = 25000, N = 2000,
+  polygon = europe
+)
+
+ana <- population( # Anatolian farmers
+  name = "ANA", time = 28000, N = 3000, parent = ooa, remove = 4000,
+  center = c(34, 38), radius = 500e3, polygon = anatolia
+) %>%
+  expand( # expand the range by 2.500 km
+    by = 2500e3, start = 10000, end = 7000,
+    polygon = join(europe, anatolia)
+  )
+yam <- population( # Yamnaya steppe population
+  name = "YAM", time = 7000, N = 500, parent = ehg, remove = 2500,
+  polygon = list(c(26, 50), c(38, 49), c(48, 50),
+                 c(48, 56), c(38, 59), c(26, 56))
+)
+
+yam <- yam %>%
+  move(
+    trajectory = c(15, 50),
+    start = 5000, end = 3000, snapshots = 8
+  )
+
+gf <- list(
+  geneflow(from = ana, to = yam, rate = 0.5, start = 6500, end = 6400, overlap = FALSE),
+  geneflow(from = ana, to = eur, rate = 0.5, start = 8000, end = 6000),
+  geneflow(from = yam, to = eur, rate = 0.75, start = 4000, end = 3000)
+)
+
+model <- compile(
+  populations = list(afr, ooa, ehg, eur, ana, yam), # populations defined above
+  geneflow = gf, # geneflow events defined above
+  generation_time = 30,
+  resolution = 10e3, # resolution in meters per pixel
+  competition_dist = 130e3, mate_dist = 100e3, # spatial interaction in SLiM
+  dispersal_dist = 70e3, # how far will offspring end up from their parents
+  dir = file.path(tempdir(), "slendr"),  overwrite = TRUE
+)
+
+#try reading files in our model
+list.files(file.path(tempdir(), "slendr"), pattern = "*.png")
+
+#use our model to see the plot
+plot_graph(model)
+
+#do some sampling
+afr_sample <- sampling(model, times=c(0,51999), list(afr, 3000))
+ooa_samples <- sampling(model, times=c(51000, 40000), list(ooa, 500))
+ehg_samples <- sampling(model, times=27000, list(ehg, 1000))
+eur_samples <- sampling(model, times=24000, list(eur, 2000))
+ana_samples <- sampling(model, times=c(27000,7000), list(ana, 3000))
+yam_samples <- sampling(model, times=c(6500, 4000), list(yam, 500))
+
+
+slim(
+  model,
+  seq_length = 1, recomb_rate = 0, # simulate only a single locus
+  ts_recording = TRUE,
+  save_locations = TRUE, # save the location of everyone who ever lived
+  track_ancestry = 1,
+  sampling = rbind(afr_sample, ooa_samples, ehg_samples, eur_samples, ana_samples, yam_samples),
+  method = "batch", # change to "gui" to execute the model in SLiMgui
+  seed = 314159
+)

@@ -1,0 +1,7 @@
+pop	parent	N	tsplit_gen	tsplit_orig	tremove_gen	tremove_orig	pop_id	parent_id
+AFR	ancestor	3000	1	52000	-1	-1	0	-1
+OOA	AFR	500	34	51000	901	25000	1	0
+EHG	OOA	1000	801	28000	1534	6000	2	1
+ANA	OOA	3000	801	28000	1601	4000	3	1
+EUR	EHG	2000	901	25000	-1	-1	4	2
+YAM	EHG	500	1501	7000	1651	2500	5	2

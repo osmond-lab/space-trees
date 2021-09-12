@@ -1,0 +1,77 @@
+initialize() {
+
+   setSeed(1);     // set seed for repeatability
+   initializeSLiMModelType("nonWF");     // non-Wright-Fisher to allow for local density-dependence and prevent clumping
+   initializeSLiMOptions(dimensionality="xy");    // 2 dimensions
+   initializeTreeSeq(retainCoalescentOnly=F);     // keep all ancestors that remain in tree sequence
+   initializeMutationRate(1e-7);      // introducing mutations
+	initializeMutationType("m1", 0.5, "n", 0.1, 0.03);   // beneficial mutations with normally distributed fitness effects of mean 0.1
+	initializeMutationType("m2", 0.5, "n", -0.1, 0.03); // deleterious mutations, normally distributed fitness, mean -0.1
+   initializeGenomicElementType("g1", c(m1, m2), c(1.0, 20.0));
+   initializeGenomicElement(g1, 0, 999999);       // 1Mb chromosome
+   initializeRecombinationRate(1e-8);             // some recombination so we get multiple trees
+
+   // parameter values
+   defineConstant("LAMBDA", 8.0); // birth rate
+   defineConstant("K", 2.0);      // carrying capacity per unit area
+   defineConstant("W", 10);       // width and height of the area
+   defineConstant("SIGMA", 0.1);  // interaction and dispersal distance
+   
+   // spatial interaction for local competition
+   initializeInteractionType("i1", "xy", reciprocal=T, maxDistance = 10 * SIGMA);  // interaction for both mate choice and density dependence
+   i1.setInteractionFunction("n", 1.0/(2*PI*SIGMA^2), SIGMA);                      // normally distributed around the focal individual with variance SIGMA^2 along both axes
+}
+
+reproduction() {
+   neighbor_density = i1.totalOfNeighborStrengths(individual);     // strength of competition felt from neighbours
+   num_offspring = rpois(1, LAMBDA / (1 + neighbor_density / K));  // number of offspring is Poisson distributed with a mean depending on LAMBDA, neighbor_density, and K
+   mate = i1.drawByStrength(individual, 1);                        // single mate drawn randomly weighted by interaction strengths
+   if (size(mate) > 0) {                                           // if there is a mate (might not be if no neighbors)
+       for (k in seqLen(num_offspring)) {                          // for each offspring
+           offspring = p1.addCrossed(individual, mate);            // create by recombination
+           pos = individual.spatialPosition + rnorm(2, 0, SIGMA);  // position of offspring is normally distributed around "mother" with variance SIGMA in both axes
+           offspring.setSpatialPosition(p1.pointReflected(pos));   // reflecting boundaries
+       }
+   }
+}
+
+1 early() {
+   
+   
+   sim.addSubpop("p1", 2);  //start with just two ancestors (helps make everyone coalesce in a short time)                     
+
+   p1.setSpatialBounds(c(0.0, 0.0, W, W)); // set spatial bounds (square with width W)
+   
+   // start ancestors in 1x1 square in the center of range
+   p1.individuals.x = runif(p1.individualCount) + (W-1)/2; 
+   p1.individuals.y = runif(p1.individualCount) + (W-1)/2;
+}
+
+early() { 
+    inds = sim.subpopulations.individuals;
+    i1.evaluate();
+    for (i in inds) {
+    	if (i.age > 0) {
+    		fit = (1/i.age);
+    		if (i1.totalOfNeighborStrengths(i) > 1) {
+    			fit = fit / i1.totalOfNeighborStrengths(i);
+			}
+			i.fitnessScaling = fit;
+    	}
+    }
+    inds.fitnessScaling = (K * W^2) / p1.individualCount;
+}
+
+late() {
+   i1.evaluate(); //evaluate interaction strengths for next generation
+}
+
+late() {
+   sim.treeSeqRememberIndividuals(p1.individuals, permanent=F); // retain individuals remaining in the tree sequence
+}
+
+1000 late() { 
+   sim.treeSeqOutput("ssim_mut.trees"); //save the tree sequence
+   catn("Done.");
+   sim.simulationFinished();
+}
